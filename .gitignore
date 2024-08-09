@@ -1,0 +1,8 @@
+*.db*
+*.json
+*.key
+*.log
+*.pem
+__pycache__/
+backup/
+test/

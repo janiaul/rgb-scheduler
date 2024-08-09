@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RGB Control Server</title>
+    <link rel="icon" type="image/png" href="/favicon.ico">
+    <style>
+        :root {
+            --bg-day: linear-gradient(300deg, #a1c4fd 0%, #c2e9fb 100%);
+            --bg-night: linear-gradient(120deg, #330867 0%, #76a7c1 100%);
+            /* --bg-dark: linear-gradient(to top, #000 0%, #202020 100%); */
+            --text-day: #333;
+            --text-night: #fff;
+            --selection-day: #fff9c4;
+            --selection-night: #ffd700;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            transition: background 0.5s ease;
+        }
+
+        .page-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .clock-time {
+            font-size: 4rem;
+            font-weight: bold;
+        }
+
+        .rgb-container,
+        .alert-container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            transition: all 0.5s ease;
+        }
+
+        .rgb-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .alert-container {
+            position: absolute;
+            display: none;
+            top: calc(100% + 1rem);
+            left: 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .alert-success {
+            background-color: #4CAF50;
+        }
+
+        .alert-error {
+            background-color: #f44336;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4 {
+            margin-bottom: 1rem;
+        }
+
+        p {
+            margin-bottom: 0.5rem;
+        }
+
+        #countdown {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .btn-container {
+            display: flex;
+            justify-content: space-around;
+            gap: 1rem;
+            margin-top: 20px;
+        }
+
+        .btn-container button svg {
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.5;
+        }
+
+        .btn-grad {
+            background-size: 200% auto;
+            transition: 0.5s;
+            padding: 15px 45px;
+            text-align: center;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-grad img {
+            width: 24px;
+            height: 24px;
+            z-index: 2;
+        }
+
+        .btn-grad:hover {
+            background-position: right center;
+        }
+
+        .btn-day {
+            background-image: linear-gradient(to right, #2c3e50 0%, #4c669f 51%, #2c3e50 100%);
+        }
+
+        .btn-night {
+            background-image: linear-gradient(to right, #FFD700 0%, #FFA500 51%, #FFD700 100%);
+        }
+
+        .btn-grad::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 5px;
+            height: 5px;
+            background: rgba(255, 255, 255, 0.5);
+            opacity: 0;
+            border-radius: 100%;
+            transform: scale(1, 1) translate(-50%);
+            transform-origin: 50% 50%;
+        }
+
+        @keyframes ripple {
+            0% {
+                transform: scale(0, 0);
+                opacity: 0.5;
+            }
+
+            20% {
+                transform: scale(25, 25);
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 0;
+                transform: scale(40, 40);
+            }
+        }
+
+        .btn-grad:focus:not(:active)::after {
+            animation: ripple 1s ease-out;
+        }
+
+        ::selection {
+            background: var(--selection-day);
+        }
+
+        body[data-theme='night'] ::selection {
+            background: var(--selection-night);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page-container">
+        <div class="rgb-container">
+            <div class="clock-time" id="clock">Loading...</div>
+            <h2>Current Schedule:</h2>
+            <p>Sunrise: {{ sunrise }}</p>
+            <p>Sunset: {{ sunset }}</p>
+            <h3>Next event: {{ next_event }}</h3>
+            <span id="countdown">Loading...</span>
+            <div class="btn-container">
+                <button class="btn-grad btn-day" type="button" alt="Day Mode" onclick="toggleMode('day')">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="12.41 6.75 13 2 10.57 4.92" />
+                        <polyline points="18.57 12.91 21 10 15.66 10" />
+                        <polyline points="8 8 3 14 12 14 11 22 16 16" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                </button>
+                <button class="btn-grad btn-night" type="button" alt="Night Mode" onclick="toggleMode('night')">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                    </svg>
+                </button>
+            </div>
+            <div class="alert-container">
+                <div id="alert" class="alert"></div>
+            </div>
+        </div>
+    </div>
+    <script>
+        function capitalize(str) {
+            if (str.length === 0) return str;
+            return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+        }
+
+        function toggleMode(mode) {
+            fetch(`/toggle?mode=${mode}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.text();
+                })
+                .then(data => {
+                    console.log('Success');
+                    showAlert(`Mode set to: ${capitalize(mode)}`, 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showAlert(`Failed to set mode to: ${capitalize(mode)}`, 'error');
+                });
+        }
+
+        let timeoutId;
+
+        function showAlert(message, type) {
+            const alertContainer = document.getElementsByClassName('alert-container')[0];
+            const alert = document.getElementById('alert');
+            alert.textContent = message;
+            alert.className = `alert alert-${type}`;
+            alertContainer.style.display = 'block';
+
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+            timeoutId = setTimeout(() => {
+                alertContainer.style.display = 'none';
+            }, 3000);
+        }
+
+        function checkUrlParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const mode = urlParams.get('mode');
+            if (mode) {
+                showAlert(`Mode set to ${capitalize(mode)}`, 'success');
+                window.history.replaceState({}, document.title, "/");
+            }
+        }
+
+        function updateClock() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+            document.getElementById('clock').textContent = timeString;
+        }
+
+        function updateCountdown() {
+            const nextEventTime = new Date("{{ next_time }}").getTime();
+            const now = new Date().getTime();
+            const distance = nextEventTime - now;
+
+            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+            document.getElementById('countdown').textContent = `${hours}h ${minutes}m ${seconds}s`;
+
+            let countdownText = '';
+
+            if (distance < 0) {
+                countdownText = "Updating...";
+                location.reload();
+            } else if (hours > 0) {
+                countdownText = `${hours}h ${minutes}m ${seconds}s`;
+            } else if (minutes > 0) {
+                countdownText = `${minutes}m ${seconds}s`;
+            } else {
+                countdownText = `${seconds}s`;
+            }
+
+            document.getElementById('countdown').textContent = countdownText;
+        }
+
+        function setMode(mode) {
+            const body = document.body;
+            const container = document.querySelector('.page-container');
+            const buttons = document.querySelectorAll('button');
+
+            if (mode === 'day') {
+                body.style.background = 'var(--bg-day)';
+                container.style.color = 'var(--text-day)';
+                buttons.forEach(btn => {
+                    btn.style.color = 'var(--text-day)';
+                });
+                body.setAttribute('data-theme', 'day');
+            } else {
+                body.style.background = 'var(--bg-night)';
+                container.style.color = 'var(--text-night)';
+                buttons.forEach(btn => {
+                    btn.style.color = 'var(--text-night)';
+                });
+                body.setAttribute('data-theme', 'night');
+            }
+        }
+
+        function cleanBody() {
+            const bodyText = document.body.innerHTML;
+            const headerPattern = /^HTTP\/\d\.\d \d{3} [^\n]+(\n[a-zA-Z\-]+: [^\n]+)*\n\n/;
+            if (headerPattern.test(bodyText)) {
+                document.body.innerHTML = bodyText.replace(headerPattern, '');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const currentMode = "{{ current_mode }}";
+            setMode(currentMode);
+            cleanBody();
+            checkUrlParams();
+        });
+
+        setInterval(updateClock, 1000);
+        setInterval(updateCountdown, 1000);
+
+        updateClock();
+        updateCountdown();
+
+        console.log('Last Updated: {{ last_updated }}')
+        if ('{{ debug_active }}' === 'true') {
+            console.log('Debug Mode Enabled')
+        }
+    </script>
+</body>
+
+</html>

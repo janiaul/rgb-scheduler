@@ -1,0 +1,8 @@
+astral
+apscheduler
+cryptography
+jinja2
+phue
+psutil
+pytz
+pyOpenSSL
