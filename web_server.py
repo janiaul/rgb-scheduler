@@ -180,6 +180,30 @@ def read_schedule():
         return None, None, None, "unknown"
 
 
+def determine_next_event(sunrise, sunset):
+    now = datetime.now(timezone.utc)
+    today_sunrise = sunrise.replace(year=now.year, month=now.month, day=now.day)
+    today_sunset = sunset.replace(year=now.year, month=now.month, day=now.day)
+    tomorrow_sunrise = today_sunrise + timedelta(days=1)
+
+    if DEBUG_MODE:
+        if today_sunrise < now:
+            today_sunrise = tomorrow_sunrise
+        time_to_sunrise = (today_sunrise - now).total_seconds()
+        time_to_sunset = (today_sunset - now).total_seconds()
+        if time_to_sunrise < time_to_sunset:
+            return "sunrise", today_sunrise, "night"
+        else:
+            return "sunset", today_sunset, "day"
+    else:
+        if now < today_sunrise:
+            return "sunrise", today_sunrise, "night"
+        elif now < today_sunset:
+            return "sunset", today_sunset, "day"
+        else:
+            return "sunrise", tomorrow_sunrise, "night"
+
+
 def get_sessions_db():
     """Get the sessions database."""
     try:
@@ -368,55 +392,17 @@ class RgbControlHandler(http.server.SimpleHTTPRequestHandler):
             now = datetime.now(timezone.utc)
 
             if sunrise and sunset:
-                today_sunrise = sunrise.replace(
-                    year=now.year, month=now.month, day=now.day
+                next_event, next_time, current_mode = determine_next_event(
+                    sunrise, sunset
                 )
-                today_sunset = sunset.replace(
-                    year=now.year, month=now.month, day=now.day
-                )
-
-                if DEBUG_MODE:
-                    # If sunrise has already passed today, use tomorrow's sunrise
-                    if today_sunrise < now:
-                        today_sunrise += timedelta(days=1)
-
-                    # Calculate time differences
-                    time_to_sunrise = (today_sunrise - now).total_seconds()
-                    time_to_sunset = (today_sunset - now).total_seconds()
-
-                    if time_to_sunrise < time_to_sunset:
-                        next_event = "sunrise"
-                        next_time = today_sunrise
-                        current_mode = "night"
-                    else:
-                        next_event = "sunset"
-                        next_time = today_sunset
-                        current_mode = "day"
-                else:
-                    tomorrow_sunrise = today_sunrise + timedelta(days=1)
-
-                    if now < today_sunrise:
-                        next_event = "sunrise"
-                        next_time = today_sunrise
-                        current_mode = "night"
-                    elif now < today_sunset:
-                        next_event = "sunset"
-                        next_time = today_sunset
-                        current_mode = "day"
-                    else:
-                        next_event = "sunrise"
-                        next_time = tomorrow_sunrise
-                        current_mode = "night"
             else:
                 next_event = "Not available"
                 next_time = now  # Fallback to current time
                 current_mode = "day" if 6 <= now.hour < 18 else "night"
 
-            # Check if mode was passed in the query parameters
             if "mode" in params:
                 current_mode = params["mode"][0]
 
-            # Prepare the data for the template
             template_data = {
                 "sunrise": sunrise.strftime("%H:%M") if sunrise else "Not available",
                 "sunset": sunset.strftime("%H:%M") if sunset else "Not available",
