@@ -218,6 +218,8 @@
         </div>
     </div>
     <script>
+        const isDebugMode = ('{{ debug_active }}' === 'true');
+
         function capitalize(str) {
             if (str.length === 0) return str;
             return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
@@ -343,9 +345,9 @@
         updateClock();
         updateCountdown();
 
-        console.log('Last Updated: {{ last_updated }}')
-        if ('{{ debug_active }}' === 'true') {
-            console.log('Debug Mode Enabled')
+        console.log('Last Updated: {{ last_updated }}');
+        if (isDebugMode) {
+            console.log('Debug Mode:', isDebugMode);
         }
     </script>
 </body>
