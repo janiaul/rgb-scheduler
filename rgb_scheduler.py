@@ -19,7 +19,8 @@ from astral.sun import sun
 from phue import Bridge
 import psutil
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.date import DateTrigger
+from apscheduler.jobstores.memory import MemoryJobStore
+from apscheduler.executors.pool import ThreadPoolExecutor
 
 from web_server import run_server
 
@@ -31,7 +32,16 @@ scheduler_logger = logging.getLogger("rgb_scheduler")
 scheduler_logger.addHandler(logging.NullHandler())
 schedule_file = os.path.join(script_dir, "schedule.json")
 schedule_lock = Lock()
-scheduler = BackgroundScheduler()
+jobstores = {"default": MemoryJobStore()}
+executors = {"default": ThreadPoolExecutor(max_workers=1)}
+job_defaults = {
+    "coalesce": True,
+    "max_instances": 1,
+    "misfire_grace_time": None,  # Allow the job to always run, regardless of how late it is
+}
+scheduler = BackgroundScheduler(
+    jobstores=jobstores, executors=executors, job_defaults=job_defaults
+)
 config = configparser.ConfigParser()
 config.read(os.path.join(script_dir, "config.ini"))
 
@@ -232,6 +242,15 @@ def save_schedule(sunrise_time, sunset_time):
         scheduler_logger.debug(f"Schedule saved: {schedule_data}")
 
 
+def get_next_event_time(current_time, sunrise_time, sunset_time):
+    if sunrise_time <= current_time < sunset_time:
+        return sunset_time, "nighttime"
+    elif current_time < sunrise_time:
+        return sunrise_time, "daytime"
+    else:
+        return sunrise_time + timedelta(days=1), "daytime"
+
+
 def schedule_sun_events():
     global scheduler, DEBUG_MODE, current_effect
 
@@ -288,14 +307,20 @@ def schedule_sun_events():
 
     else:
         # Normal mode logic
-        if sunrise_time <= now < sunset_time:
-            current_effect = "daytime"
-            next_effect = "nighttime"
-            next_event_time = sunset_time
-        else:
-            current_effect = "nighttime"
-            next_effect = "daytime"
-            next_event_time = sunrise_time
+        if not sunrise_time or not sunset_time:
+            scheduler_logger.warning("No sun times available to schedule events")
+            # Schedule default times for high latitude regions
+            default_sunrise = now.replace(hour=6, minute=0, second=0, microsecond=0)
+            default_sunset = now.replace(hour=18, minute=0, second=0, microsecond=0)
+            sunrise_time, sunset_time = default_sunrise, default_sunset
+            scheduler_logger.info(
+                f"Default times scheduled: Daytime at {default_sunrise.time()}, Nighttime at {default_sunset.time()}"
+            )
+
+        next_event_time, next_effect = get_next_event_time(
+            now, sunrise_time, sunset_time
+        )
+        current_effect = "daytime" if sunrise_time <= now < sunset_time else "nighttime"
 
         # Save the schedule
         save_schedule(sunrise_time, sunset_time)
@@ -307,37 +332,50 @@ def schedule_sun_events():
     scheduler_logger.info(f"Next event scheduled for: {next_event_time}")
     scheduler_logger.info(f"Next effect will be: {next_effect}")
 
-    # Schedule the next event using APScheduler with DateTrigger
+    # Schedule the next event using APScheduler
     try:
-        job = scheduler.add_job(
+        scheduler.add_job(
             execute_sun_event,
-            trigger=DateTrigger(run_date=next_event_time),
+            trigger="date",
+            run_date=next_event_time,
             id="sun_events",
             args=[next_event_time, next_effect],
             replace_existing=True,
-            misfire_grace_time=60,  # Allow the job to be executed up to 60 seconds late
         )
-        scheduler_logger.debug(f"New job added: {job}")
+        scheduler_logger.debug(f"New job added for {next_event_time}")
         scheduler_logger.debug(f"All jobs: {scheduler.get_jobs()}")
     except Exception as e:
         scheduler_logger.error(f"Error adding job: {e}")
+        # Attempt to reschedule in 5 minutes
+        scheduler.add_job(
+            schedule_sun_events,
+            "date",
+            run_date=now + timedelta(minutes=5),
+            id="retry_sun_events",
+        )
 
 
 def execute_sun_event(scheduled_time, effect_to_set):
-    """Execute the scheduled sun event."""
-    scheduler_logger.debug(f"Executing sun event scheduled for {scheduled_time}")
-    current_effect = get_current_effect()
-    if current_effect != effect_to_set:
-        set_effect(effect_to_set)
-        scheduler_logger.info(f"Effect changed to: {effect_to_set}")
-    else:
-        scheduler_logger.info(f"Effect remains: {effect_to_set}")
-    schedule_sun_events()  # Reschedule the next event
+    try:
+        scheduler_logger.debug(f"Executing sun event scheduled for {scheduled_time}")
+        current_effect = get_current_effect()
+        if current_effect != effect_to_set:
+            set_effect(effect_to_set)
+            scheduler_logger.info(f"Effect changed to: {effect_to_set}")
+        else:
+            scheduler_logger.info(f"Effect remains: {effect_to_set}")
+        schedule_sun_events()  # Reschedule the next event
+    except Exception as e:
+        scheduler_logger.error(f"Error executing sun event: {e}")
+        # Attempt to reschedule
+        try:
+            schedule_sun_events()
+        except Exception as e:
+            scheduler_logger.critical(f"Failed to reschedule sun events: {e}")
 
 
 def start_scheduler():
     global scheduler, current_effect
-    scheduler_logger.debug("Entering start_scheduler function")
 
     if scheduler.running:
         scheduler_logger.debug("Scheduler is already running")
@@ -352,8 +390,6 @@ def start_scheduler():
         scheduler_logger.debug("Scheduler started in debug mode")
         scheduler_logger.debug(f"Scheduler state: {scheduler.state}")
         scheduler_logger.debug(f"Scheduled jobs: {scheduler.get_jobs()}")
-
-    scheduler_logger.debug("Exiting start_scheduler function")
 
 
 def wrapped_run_server(set_effect):
@@ -517,6 +553,7 @@ def main() -> None:
         if is_script_running():
             if not scheduler.running:
                 scheduler_logger.info("Scheduler stopped running. Restarting...")
+                time.sleep(5)  # Add a small delay to ensure system is fully operational
                 start_scheduler()
         else:
             scheduler_logger.warning(
@@ -539,51 +576,39 @@ def main() -> None:
             scheduler_logger.info(
                 f"Main process started successfully, RGB_SCHEDULER_ID: {rgb_scheduler_id}"
             )
-            try:
-                # Keep the main thread alive
-                while True:
-                    if DEBUG_MODE:
-                        time.sleep(30)  # Check every 30 seconds in debug mode
 
-                        now = datetime.now(pytz.timezone(city_timezone))
-                        scheduler_logger.debug(
-                            f"Main loop check - Current time: {now.isoformat()}"
-                        )
-                        scheduler_logger.debug(
-                            f"Main loop check - Scheduler running: {scheduler.running}"
-                        )
-                        jobs = scheduler.get_jobs()
-                        scheduler_logger.debug(
-                            f"Main loop check - Scheduled jobs: {jobs}"
-                        )
+            check_interval = timedelta(minutes=5)
+            last_check = datetime.now(pytz.timezone(city_timezone))
 
-                        for job in jobs:
-                            scheduler_logger.debug(
-                                f"Job {job.id} next run time: {job.next_run_time}"
-                            )
-                            if job.next_run_time and job.next_run_time <= now:
-                                scheduler_logger.debug(
-                                    f"Job {job.id} is due. Letting the scheduler execute it."
-                                )
+            while True:
+                time.sleep(60)  # Check every minute
+                now = datetime.now(pytz.timezone(city_timezone))
 
-                        next_job = scheduler.get_job("sun_events")
-                        if next_job:
-                            scheduler_logger.debug(
-                                f"DEBUG: Next job scheduled for: {next_job.next_run_time}"
-                            )
-                        else:
-                            scheduler_logger.debug("DEBUG: No sun_events job scheduled")
-                    else:
-                        time.sleep(3600)  # 1 hour
-
+                if now - last_check >= check_interval:
+                    last_check = now
                     if not scheduler.running:
                         scheduler_logger.warning(
                             "Scheduler stopped running. Restarting..."
                         )
                         start_scheduler()
+                    else:
+                        scheduler_logger.debug("Scheduler still running.")
 
-            except (KeyboardInterrupt, SystemExit):
-                scheduler_logger.info("Script terminated by user\n")
+                if DEBUG_MODE:
+                    scheduler_logger.debug(
+                        f"Main loop check - Current time: {now.isoformat()}"
+                    )
+                    scheduler_logger.debug(
+                        f"Main loop check - Scheduler running: {scheduler.running}"
+                    )
+                    jobs = scheduler.get_jobs()
+                    scheduler_logger.debug(f"Main loop check - Scheduled jobs: {jobs}")
+
+                    for job in jobs:
+                        scheduler_logger.debug(
+                            f"Job {job.id} next run time: {job.next_run_time}"
+                        )
+
         except Exception as e:
             scheduler_logger.critical(f"Script terminated unexpectedly: {e}")
         finally:
@@ -596,6 +621,8 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
+    except (KeyboardInterrupt, SystemExit):
+        scheduler_logger.info("Script terminated by user")
     except Exception as e:
         scheduler_logger.critical(f"Unhandled exception in main: {e}")
         sys.exit(1)
