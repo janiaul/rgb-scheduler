@@ -348,6 +348,8 @@
         console.log('Last Updated: {{ last_updated }}');
         if (isDebugMode) {
             console.log('Debug Mode:', isDebugMode);
+            console.log("Next event time:", new Date("{{ next_time }}"))
+            console.log("Current time:", new Date())
         }
     </script>
 </body>
