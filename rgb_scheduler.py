@@ -21,10 +21,13 @@ import psutil
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.executors.pool import ThreadPoolExecutor
+import win32event
+import win32api
 
 from web_server import run_server
 
 
+WAKEUP_EVENT = "Global\\RGBSchedulerWakeupEvent"
 DEBUG_MODE = os.environ.get("RGB_SCHEDULER_DEBUG_MODE", "false").lower() == "true"
 script_dir = os.path.dirname(os.path.abspath(__file__))
 scheduler_log_path = os.path.join(script_dir, "scheduler.log")
@@ -327,10 +330,9 @@ def schedule_sun_events():
 
     # Set the current effect
     set_effect(current_effect)
-    scheduler_logger.info(f"Current effect set to: {current_effect}")
 
     scheduler_logger.info(f"Next event scheduled for: {next_event_time}")
-    scheduler_logger.info(f"Next effect will be: {next_effect}")
+    scheduler_logger.info(f"Next effect will be: {next_effect.capitalize()}")
 
     # Schedule the next event using APScheduler
     try:
@@ -404,7 +406,78 @@ def run_web_server(set_effect):
     return process
 
 
-def find_processes(env_var_names: List[str]) -> List[Dict]:
+def create_wakeup_event():
+    """Create the wakeup event."""
+    try:
+        event = win32event.CreateEvent(None, False, False, WAKEUP_EVENT)
+        scheduler_logger.debug(f"Wakeup event created: {WAKEUP_EVENT}")
+        return event
+    except Exception as e:
+        scheduler_logger.error(f"Failed to create wakeup event: {e}")
+        return None
+
+
+def set_wakeup_event():
+    """Set the wakeup event."""
+    try:
+        event = win32event.OpenEvent(win32event.EVENT_MODIFY_STATE, False, WAKEUP_EVENT)
+        win32event.SetEvent(event)
+        win32api.CloseHandle(event)
+        scheduler_logger.info(f"Wakeup event set: {WAKEUP_EVENT}")
+    except Exception as e:
+        scheduler_logger.error(f"Failed to set wakeup event: {e}")
+
+
+def wait_for_wakeup_event(timeout_ms):
+    """Wait for the wakeup event."""
+    try:
+        event = win32event.OpenEvent(win32event.SYNCHRONIZE, False, WAKEUP_EVENT)
+        result = win32event.WaitForSingleObject(event, timeout_ms)
+        win32api.CloseHandle(event)
+
+        if result == win32event.WAIT_OBJECT_0:
+            scheduler_logger.info("Wakeup event signaled")
+            return True
+        elif result == win32event.WAIT_TIMEOUT:
+            scheduler_logger.debug("Wakeup event wait timed out")
+            return False
+        else:
+            scheduler_logger.warning(
+                f"Unexpected result from WaitForSingleObject: {result}"
+            )
+            return False
+    except Exception as e:
+        scheduler_logger.error(f"Error waiting for wakeup event: {e}")
+        return False
+
+
+def find_main_process():
+    """Find the main process."""
+    current_script = os.path.abspath(__file__)
+    current_pid = os.getpid()
+    script_name = os.path.basename(current_script).lower()
+
+    scheduler_logger.debug(f"Current process: PID {current_pid}")
+    scheduler_logger.debug(f"Searching for process with script: {current_script}")
+
+    for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+        try:
+            proc_cmdline = " ".join(proc.cmdline()).lower()
+            if (
+                script_name in proc_cmdline
+                and "multiprocessing-fork" not in proc_cmdline
+                and proc.pid != current_pid
+            ):
+                scheduler_logger.info(f"Found main process: PID {proc.pid}")
+                return proc
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+
+    scheduler_logger.warning("Main process not found")
+    return None
+
+
+def find_matching_processes(env_var_names: List[str]) -> List[Dict]:
     """Find all processes that use any of the specified environment variables."""
     matching_processes = []
     for proc in psutil.process_iter(["pid", "name", "environ", "cmdline"]):
@@ -438,8 +511,7 @@ def terminate_processes(processes: List[Dict]) -> List[Dict]:
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             proc_info["terminated"] = False
 
-    # Wait for processes to terminate
-    time.sleep(3)
+    time.sleep(3)  # Wait for processes to terminate
 
     # Check if processes have ended and force kill if necessary
     for proc_info in processes:
@@ -466,7 +538,7 @@ def is_script_running() -> bool:
     env_vars_to_check = ["RGB_SCHEDULER_ID"]
     current_script = os.path.abspath(__file__)
     current_pid = os.getpid()
-    running_processes = find_processes(env_vars_to_check)
+    running_processes = find_matching_processes(env_vars_to_check)
 
     for proc in running_processes:
         if current_script in proc["cmdline"] and proc["pid"] != current_pid:
@@ -475,46 +547,85 @@ def is_script_running() -> bool:
             )
             return True
 
-    scheduler_logger.info("No other running instance found.")
+    scheduler_logger.info("No other running instance found")
     return False
 
 
-def main() -> None:
-    """Main function to run the scheduler and start the web server."""
-    global DEBUG_MODE, scheduler_logger
+def handle_wakeup():
+    """Handle the wakeup event."""
+    scheduler_logger.info("System woke up from sleep")
 
-    parser = argparse.ArgumentParser(
-        description="RGB light scheduler based on sun times"
+    current_pid = os.getpid()
+    current_script = os.path.abspath(__file__)
+    current_rgb_scheduler_id = os.environ.get("RGB_SCHEDULER_ID")
+    scheduler_logger.info(
+        f"Current process: PID {current_pid}, Script: {current_script}, RGB_SCHEDULER_ID: {current_rgb_scheduler_id}"
     )
-    parser.add_argument(
-        "-k",
-        "--kill",
-        action="store_true",
-        help="Kill all processes related to the script",
-    )
-    parser.add_argument(
-        "-t",
-        "--toggle",
-        choices=["day", "night"],
-        help="Manually set day or night mode",
-    )
-    parser.add_argument(
-        "-w",
-        "--wakeup",
-        action="store_true",
-        help="Trigger wake-up actions",
-    )
-    parser.add_argument(
-        "-d",
-        "--debug",
-        action="store_true",
-        help="Run in debug mode mode",
-    )
-    args = parser.parse_args()
+
+    main_process = find_main_process()
+    if main_process:
+        set_wakeup_event()
+        scheduler_logger.info(
+            f"Wakeup event set for the running instance (PID: {main_process.pid})"
+        )
+    else:
+        scheduler_logger.warning("Main process not found by find_main_process function")
+
+        script_name = os.path.basename(current_script).lower()
+        matching_processes = []
+        for proc in psutil.process_iter(["pid", "name", "cmdline", "environ"]):
+            try:
+                if script_name in " ".join(proc.cmdline()).lower():
+                    proc_info = {
+                        "pid": proc.pid,
+                        "cmdline": " ".join(proc.cmdline()),
+                        "env": proc.environ().get("RGB_SCHEDULER_ID"),
+                    }
+                    matching_processes.append(proc_info)
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+
+        scheduler_logger.info(
+            f"Found {len(matching_processes)} processes running the script:"
+        )
+        for proc in matching_processes:
+            scheduler_logger.info(
+                f"PID: {proc['pid']}, CMD: {proc['cmdline']}, RGB_SCHEDULER_ID: {proc['env']}"
+            )
+
+        scheduler_logger.warning(
+            "Wakeup triggered, but the main script was not identified"
+        )
+
+
+def handle_termination():
+    """Handle the process termination event."""
+    scheduler_logger.info("Terminating processes...")
+
+    env_vars_to_terminate = ["RGB_SCHEDULER_ID", "WEB_SERVER_ID"]
+    processes_to_terminate = find_matching_processes(env_vars_to_terminate)
+    terminated = terminate_processes(processes_to_terminate)
+
+    if terminated:
+        scheduler_logger.info(f"Attempted to terminate {len(terminated)} process(es):")
+        for proc in terminated:
+            env_vars_str = ", ".join(
+                [f"{var}: {value}" for var, value in proc["env_vars"].items()]
+            )
+            scheduler_logger.info(
+                f"PID: {proc['pid']}, NAME: {proc['name']}, STATUS: {proc.get('status', 'unknown')}, ENV: [{env_vars_str}]"
+            )
+
+        scheduler_logger.info("Process termination attempts completed")
+    else:
+        scheduler_logger.info("No matching processes found to terminate")
+
+
+def main(args: argparse.Namespace) -> None:
+    """Main function to run the scheduler and start the web server."""
+    global scheduler, DEBUG_MODE, scheduler_logger
 
     if args.debug:
-        rgb_scheduler_id = str(random.randint(10000, 99999))
-        os.environ["RGB_SCHEDULER_ID"] = rgb_scheduler_id
         os.environ["RGB_SCHEDULER_DEBUG_MODE"] = "true"
         DEBUG_MODE = True
 
@@ -523,65 +634,82 @@ def main() -> None:
         scheduler_logger.debug("Debug mode activated")
 
     if args.kill:
-        env_vars_to_terminate = ["RGB_SCHEDULER_ID", "WEB_SERVER_ID"]
-        processes_to_terminate = find_processes(env_vars_to_terminate)
-        terminated = terminate_processes(processes_to_terminate)
+        handle_termination()
+        sys.exit(0)
 
-        if terminated:
-            scheduler_logger.info(
-                f"Attempted to terminate {len(terminated)} process(es):"
-            )
-            for proc in terminated:
-                env_vars_str = ", ".join(
-                    [f"{var}: {value}" for var, value in proc["env_vars"].items()]
-                )
-                scheduler_logger.info(
-                    f"PID: {proc['pid']}, Name: {proc['name']}, Status: {proc['status']} [{env_vars_str}]"
-                )
-
-            scheduler_logger.info("Process termination attempts completed")
-            sys.exit(0)
-        else:
-            scheduler_logger.info("No matching processes found to terminate")
+    elif args.wakeup:
+        handle_wakeup()
 
     elif args.toggle:
         set_effect("daytime" if args.toggle == "day" else "nighttime")
         scheduler_logger.info(f"Toggled to {args.toggle} mode")
 
-    elif args.wakeup:
-        scheduler_logger.info("System woke up from sleep.")
-        if is_script_running():
-            if not scheduler.running:
-                scheduler_logger.info("Scheduler stopped running. Restarting...")
-                time.sleep(5)  # Add a small delay to ensure system is fully operational
-                start_scheduler()
-        else:
-            scheduler_logger.warning(
-                "Wakeup triggered, but the main script is not running."
-            )
-
     else:
+        scheduler_logger.info("Starting RGB Scheduler...")
+
         if is_script_running():
-            scheduler_logger.warning("The script is already running. Exiting.")
+            scheduler_logger.warning("The script is already running, exiting")
             sys.exit(0)
 
         try:
             rgb_scheduler_id = str(random.randint(10000, 99999))
             os.environ["RGB_SCHEDULER_ID"] = rgb_scheduler_id
+            scheduler_logger.info(
+                f"Main process started, RGB_SCHEDULER_ID: {rgb_scheduler_id}"
+            )
 
             clear_old_log_entries(scheduler_log_path)
             start_scheduler()
             server_process = run_web_server(set_effect)
 
-            scheduler_logger.info(
-                f"Main process started successfully, RGB_SCHEDULER_ID: {rgb_scheduler_id}"
-            )
+            wakeup_event = create_wakeup_event()
+            if not wakeup_event:
+                raise Exception("Failed to create wakeup event")
+
+            alert_mode = False
+            alert_mode_duration = 60  # Duration of alert mode in seconds
+            alert_mode_start = None
 
             check_interval = timedelta(minutes=5)
             last_check = datetime.now(pytz.timezone(city_timezone))
 
+            scheduler_logger.info("Entering main loop")
+            loop_count = 0
             while True:
-                time.sleep(60)  # Check every minute
+                if alert_mode:
+                    wait_time = 1000  # 1 second in milliseconds
+                    if alert_mode_start is None:
+                        alert_mode_start = time.time()
+                        scheduler_logger.info("Entered alert mode")
+                    elif time.time() - alert_mode_start > alert_mode_duration:
+                        alert_mode = False
+                        alert_mode_start = None
+                        scheduler_logger.info("Exiting alert mode")
+                else:
+                    wait_time = 60000  # 60 seconds in milliseconds
+
+                event_signaled = wait_for_wakeup_event(wait_time)
+
+                if event_signaled:
+                    scheduler_logger.info(
+                        "Wakeup event detected. Checking scheduler..."
+                    )
+                    if not scheduler.running:
+                        scheduler_logger.warning("Scheduler not running. Restarting...")
+                        start_scheduler()
+                    else:
+                        scheduler_logger.info("Scheduler is running")
+                        schedule_sun_events()
+                    alert_mode = True
+                    alert_mode_start = time.time()
+                elif alert_mode:
+                    scheduler_logger.debug("In alert mode. Checking scheduler...")
+                    if not scheduler.running:
+                        scheduler_logger.warning("Scheduler not running. Restarting...")
+                        start_scheduler()
+                    else:
+                        scheduler_logger.debug("Scheduler is running")
+
                 now = datetime.now(pytz.timezone(city_timezone))
 
                 if now - last_check >= check_interval:
@@ -592,7 +720,11 @@ def main() -> None:
                         )
                         start_scheduler()
                     else:
-                        scheduler_logger.debug("Scheduler still running.")
+                        loop_count += 1
+                        if loop_count % 12 == 0:  # Log every hour (12 * 5 minutes)
+                            scheduler_logger.info(
+                                "Hourly check: Scheduler running normally"
+                            )
 
                 if DEBUG_MODE:
                     scheduler_logger.debug(
@@ -612,15 +744,39 @@ def main() -> None:
         except Exception as e:
             scheduler_logger.critical(f"Script terminated unexpectedly: {e}")
         finally:
+            scheduler_logger.info("Shutting down")
             scheduler.shutdown()
             if "server_process" in locals():
                 server_process.terminate()
+            if "wakeup_event" in locals():
+                win32api.CloseHandle(wakeup_event)
             logging.shutdown()
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="RGB light scheduler based on sun times"
+    )
+    parser.add_argument(
+        "-k",
+        "--kill",
+        action="store_true",
+        help="Kill all processes related to the script",
+    )
+    parser.add_argument(
+        "-t",
+        "--toggle",
+        choices=["day", "night"],
+        help="Manually set day or night mode",
+    )
+    parser.add_argument(
+        "-w", "--wakeup", action="store_true", help="Trigger wake-up actions"
+    )
+    parser.add_argument("-d", "--debug", action="store_true", help="Run in debug mode")
+    args = parser.parse_args()
+
     try:
-        main()
+        main(args)
     except (KeyboardInterrupt, SystemExit):
         scheduler_logger.info("Script terminated by user")
     except Exception as e:
