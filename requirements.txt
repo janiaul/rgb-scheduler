@@ -4,5 +4,6 @@ cryptography
 jinja2
 phue
 psutil
-pytz
 pyOpenSSL
+pytz
+pywin32
