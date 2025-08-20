@@ -1,0 +1,29 @@
+[project]
+name = "rgb-scheduler"
+version = "1.0.0"
+description = "RGB and Hue light scheduler with web interface"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE.md" }
+authors = [{ name = "Jani Aulavuo" }]
+dependencies = [
+  "apscheduler",
+  "astral",
+  "cryptography",
+  "jinja2",
+  "psutil",
+  "pyopenssl",
+  "pytz",
+  "pywin32",
+]
+
+[project.scripts]
+rgb-scheduler = "rgb_scheduler.scheduler:main"
+rgb-scheduler-web = "rgb_scheduler.web_server:run_server"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["rgb_scheduler"]

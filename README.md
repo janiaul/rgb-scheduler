@@ -1,114 +1,147 @@
 # RGB Scheduler
 
-RGB Scheduler is a Python-based application that automatically adjusts your computers' RGB lighting effects based on sunrise and sunset times. It also provides a web interface for manual control and viewing schedule information.
+**RGB Scheduler** is a modular Python application that automatically adjusts your computer’s RGB lighting effects (SignalRGB & Philips Hue) based on sunrise and sunset times. It includes a web interface for manual control and status monitoring.
+
+---
 
 ## Features
 
-- Automatically switches between day (RGBs off) and night (RGBs on) lighting effects based on sun events
-- Web interface for manual control and viewing schedule information
-- Secure HTTPS web server with authentication
-- Supports SignalRGB for RGB effects and Philips Hue for lighting control
-- Automatically starts when specific processes are detected
-- Handles system wake-up events to reschedule RGB changes
+- **Automatic RGB scheduling:** Switches between custom day/night lighting effects based on sun events.
+- **Web interface:** Secure HTTPS server for manual toggling, viewing schedules, and remote control.
+- **SignalRGB & Philips Hue support:** Integrated control for both eco-systems (effect and scene activation).
+- **Process & wake event detection:** Automatically starts/stops based on system events and running applications.
+- **Extensible & modular:** All device logic is encapsulated in Python modules for easy extension and maintenance.
+
+---
 
 ## Requirements
 
-- [Python](https://www.python.org/) 3.x
-- Windows 10 or newer (for automatic startup and wake-up handling)
-- [SignalRGB](https://signalrgb.com/) and [Hue Sync](https://www.philips-hue.com/en-us/explore-hue/propositions/entertainment/sync-with-pc)
-- Philips Hue Bridge and compatible lights
-- [OpenSSL](https://openssl-library.org/) (for generating self-signed certificates)
+- [Python 3.x](https://www.python.org/)
+- Windows 10 or newer (for process detection and wake handling)
+- [SignalRGB](https://signalrgb.com/) (for PC RGB control)
+- [Philips Hue Bridge & lights](https://www.philips-hue.com/)
+- [OpenSSL](https://openssl-library.org/) (for HTTPS certificate)
+- Required Python packages (`pip install -r requirements.txt`)
+
+---
 
 ## Installation
 
-1. Clone this repository to your local machine:
+1. **Clone the repository:**
    ```bash
    git clone https://github.com/janiaul/rgb-scheduler.git
    ```
+2. **(Optional) Set your preferred install path:**  
+   If not using the default `C:\Users\%USERNAME%\Scripts\rgb-scheduler\`, update these scripts:
+   - `run_hidden.vbs`
+   - `run_task.bat`
+   - `wake_up_handler.bat`
 
-2. **Important:** The default installation directory is `C:\Users\%USERNAME%\Scripts\rgb-scheduler\`. If you want to use a different location:
-   - Update the following files with the new path:
-     * `run_hidden.vbs`
-     * `run_task.bat`
-     * `wake_up_handler.bat`
-
-3. Install the required Python packages:
+3. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
 
-4. Generate an encrypted password for the web interface:
+4. **Generate a password for web access:**
    ```bash
-   python generate_password.py
+   python -m scripts.generate_password
    ```
-   Follow the prompts to enter a password. The script will generate an encrypted version to use in the config file.
+   Use the generated encrypted password in your `config.ini`.
 
-5. Configure the `config.ini` file with your specific settings:
-   - Web server port and credentials (use the encrypted password generated in step 4)
-   - Location information for sun calculations
-   - SignalRGB effect names
-   - Philips Hue Bridge IP and light settings
+5. **Configure your settings:**
+   - Edit `config.ini` for:
+     - Web server port and user credentials
+     - Location info (for sun calculations)
+     - SignalRGB effect names
+     - Philips Hue Bridge IP and group/scene names
 
-6. Generate a self-signed SSL certificate for the web server:
+6. **Generate a self-signed HTTPS certificate:**
    ```bash
    openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
    ```
-   Follow the prompts to enter information for your certificate.
+   Place both `key.pem` and `cert.pem` in the project data directory.
 
-7. Set up the startup script:
-   - Add `run_hidden.vbs` as a Windows scheduled task to run at startup
+7. **Set up Windows Tasks:**
+   - **Startup:** Schedule `run_hidden.vbs` to run at logon
+   - **Wake-up:** Schedule `wake_up_handler.bat` to run on resume from sleep
 
-8. Set up the wake-up handler:
-   - Add `wake_up_handler.bat` as a Windows scheduled task to run when the system wakes up from sleep
+8. **Register with Hue Bridge:**  
+   On first run, press the Hue Bridge button to authorize the app.
 
-9. Before running for the first time, press the button on the Philips Hue Bridge to register the application
+---
 
 ## Usage
 
-The application will start automatically on system startup when the required processes (SignalRGB and HueSync) are detected. It will also handle system wake-up events to reschedule RGB changes.
+- The scheduler runs automatically at startup, and after wake events.
+- Effect switching is triggered by sun events or manual web controls.
+- Access the web interface at `https://localhost:8000` (or your configured port).
+- To turn off the SignalRGB controlled lights, set the appropriate effect to "[Good Night!](https://marketplace.signalrgb.com/effect/good-night)" in the configuration file.
+- To turn off the Hue light, set the appropriate scene to "Off" in the configuration file.
 
-> **Note:** If you changed the installation directory in step 2 of the installation process, ensure that your startup scripts and scheduled tasks are pointing to the correct location.
+> **Tip:** If you change the install directory, update all scripts and scheduled tasks accordingly.
 
-To access the web interface:
+**Web Interface:**
+1. Open your browser to the configured address/port.
+2. Login with your credentials.
+3. View current effect/schedule or manually toggle day/night mode.
 
-1. Open a web browser and navigate to `https://localhost:8000` (or the port you specified in the config file)
-2. Log in using the credentials set in the config file
-3. View the current schedule and manually toggle between day and night modes if desired
+---
 
-## Files
+## Project Structure
 
-- `rgb_scheduler.py`: Main script for scheduling and applying RGB effects
-- `web_server.py`: Web server for the control interface
-- `run_task.bat`: Batch script to check for required processes and start the scheduler
-- `wake_up_handler.bat`: Batch script to handle system wake-up events
-- `config.ini`: Configuration file for various settings
-- `generate_password.py`: Script to generate encrypted passwords for the config file
-- `web_server_template.html`: HTML template for the web interface
-- `run_hidden.vbs`: VBScript to run the scheduler at system startup
+- `rgb_scheduler/`
+  - `scheduler.py` – Main scheduler logic
+  - `hue_utils.py` – Philips Hue integration (scene/group utilities)
+  - `signalrgb_utils.py` – SignalRGB effect logic
+  - `web_server.py` – Web server for remote/manual control
+  - `config_utils.py` – Configuration loaders/parsers
+  - `logging_utils.py` – Logging setup and maintenance
+  - `process_utils.py` – Process/startup/wake event utilities
+  - `path_utils.py` – Cross-platform path helpers
+- `scripts/`
+  - `generate_password.py` – Password encryption tool
+- `run_task.bat` – Batch script for startup
+- `wake_up_handler.bat` – Batch script for wake-up
+- `run_hidden.vbs` – VBScript for silent startup
+- `config.ini` – Main configuration file
+- `requirements.txt` – Python dependencies
+- `web_server_template.html` – Customizable web UI template
+
+---
 
 ## Security
 
-- The web server uses HTTPS with a self-signed certificate
-- Authentication is required to access the web interface
-- Passwords are encrypted in the configuration file
+- **HTTPS:** Web server runs over TLS (self-signed cert included by default)
+- **Authentication:** Web access requires login; passwords are encrypted in `config.ini`
+- **Logs:** All access and effect changes are logged in `scheduler.log` and `server.log`
+
+---
 
 ## Customization
 
-The web interface can be customized by modifying the `web_server_template.html` file. This file contains the HTML structure and embedded styling for the web GUI.
+- **Web UI:** Edit `index.html` and `main.css` for appearance and layout.
+- **Effect logic:** Add new device or effect support by extending the appropriate utility modules.
+
+---
 
 ## Troubleshooting
 
-Check the log files (`scheduler.log` and `server.log`) for any error messages or unexpected behavior.
+- Check `scheduler.log` and `server.log` for errors.
+- Common setup issues:
+  - SSL certificate not generated or misplaced
+  - Encrypted password in `config.ini` doesn’t match
+  - Required Python packages not installed
+  - Windows scheduled tasks not configured correctly
+  - Trying to use an effect or a scene that's not installed
 
-If you encounter issues with the web interface, ensure that:
-1. The self-signed certificate is properly generated and located in the script directory.
-2. The encrypted password in `config.ini` matches the one you generated using `generate_password.py`.
-3. The required Python packages are installed correctly.
+---
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please open an issue or submit a pull request.
+
+---
 
 ## License
 
-This project is licensed under a custom license. See the LICENSE file for details.
+This project is licensed under a custom license. See the `LICENSE` file for details.

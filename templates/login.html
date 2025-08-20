@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Login</title>
+    <link rel="stylesheet" href="/static/main.css">
+    <link rel="stylesheet" href="/static/login.css">
+    <style>
+    </style>
+
+</head>
+
+<body>
+    <div class="login-container">
+        <h2>RGB Control Server</h2>
+        <form method="POST" id="loginForm">
+            <input type="text" name="username" placeholder="Username" required>
+            <input type="password" name="password" placeholder="Password" required>
+            <button class="btn-grad btn-login" type="submit">
+                <!-- <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                    style="width: 1em; height: 1em; vertical-align: middle;">
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                    <polyline points="8 7 13 12 8 17" />
+                    <line x1="13" y1="12" x2="3" y2="12" />
+                </svg> -->
+                <span>Login</span>
+            </button>
+
+
+        </form>
+        {% if error %}
+        <div class="error-message">{{ error }}</div>
+        {% endif %}
+    </div>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('next')) {
+            const form = document.getElementById('loginForm');
+            form.action = `/login?next=${encodeURIComponent(params.get('next'))}`;
+        }
+        if (params.has('error')) {
+            window.history.replaceState({}, document.title, "/login");
+        }
+    </script>
+</body>
+
+</html>

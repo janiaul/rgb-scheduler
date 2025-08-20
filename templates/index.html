@@ -6,212 +6,171 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RGB Control Server</title>
     <link rel="icon" type="image/png" href="/favicon.ico">
-    <style>
-        :root {
-            --bg-day: linear-gradient(300deg, #a1c4fd 0%, #c2e9fb 100%);
-            --bg-night: linear-gradient(120deg, #330867 0%, #76a7c1 100%);
-            /* --bg-dark: linear-gradient(to top, #000 0%, #202020 100%); */
-            --text-day: #333;
-            --text-night: #fff;
-            --selection-day: #fff9c4;
-            --selection-night: #ffd700;
-        }
-
-        body {
-            font-family: 'Arial', sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            transition: background 0.5s ease;
-        }
-
-        .page-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .clock-time {
-            font-size: 4rem;
-            font-weight: bold;
-        }
-
-        .rgb-container,
-        .alert-container {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 2rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            text-align: center;
-            transition: all 0.5s ease;
-        }
-
-        .rgb-container {
-            position: relative;
-            display: inline-block;
-        }
-
-        .alert-container {
-            position: absolute;
-            display: none;
-            top: calc(100% + 1rem);
-            left: 0;
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .alert {
-            padding: 15px;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
-        }
-
-        .alert-success {
-            background-color: #4CAF50;
-        }
-
-        .alert-error {
-            background-color: #f44336;
-        }
-
-        h1,
-        h2,
-        h3,
-        h4 {
-            margin-bottom: 1rem;
-        }
-
-        p {
-            margin-bottom: 0.5rem;
-        }
-
-        #countdown {
-            font-size: 2rem;
-            font-weight: bold;
-        }
-
-        .btn-container {
-            display: flex;
-            justify-content: space-around;
-            gap: 1rem;
-            margin-top: 20px;
-        }
-
-        .btn-container button svg {
-            fill: none;
-            stroke: currentColor;
-            stroke-width: 1.5;
-        }
-
-        .btn-grad {
-            background-size: 200% auto;
-            transition: 0.5s;
-            padding: 15px 45px;
-            text-align: center;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
-            border: none;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .btn-grad img {
-            width: 24px;
-            height: 24px;
-            z-index: 2;
-        }
-
-        .btn-grad:hover {
-            background-position: right center;
-        }
-
-        .btn-day {
-            background-image: linear-gradient(to right, #2c3e50 0%, #4c669f 51%, #2c3e50 100%);
-        }
-
-        .btn-night {
-            background-image: linear-gradient(to right, #FFD700 0%, #FFA500 51%, #FFD700 100%);
-        }
-
-        .btn-grad::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 5px;
-            height: 5px;
-            background: rgba(255, 255, 255, 0.5);
-            opacity: 0;
-            border-radius: 100%;
-            transform: scale(1, 1) translate(-50%);
-            transform-origin: 50% 50%;
-        }
-
-        @keyframes ripple {
-            0% {
-                transform: scale(0, 0);
-                opacity: 0.5;
-            }
-
-            20% {
-                transform: scale(25, 25);
-                opacity: 0.5;
-            }
-
-            100% {
-                opacity: 0;
-                transform: scale(40, 40);
-            }
-        }
-
-        .btn-grad:focus:not(:active)::after {
-            animation: ripple 1s ease-out;
-        }
-
-        ::selection {
-            background: var(--selection-day);
-        }
-
-        body[data-theme='night'] ::selection {
-            background: var(--selection-night);
-        }
-    </style>
+    <link rel="stylesheet" href="/static/main.css">
 </head>
 
 <body>
     <div class="page-container">
+        <a href="/logout" class="logout-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+        </a>
         <div class="rgb-container">
-            <div class="clock-time" id="clock">Loading...</div>
-            <h2>Current Schedule:</h2>
-            <p>Sunrise: {{ sunrise }}</p>
-            <p>Sunset: {{ sunset }}</p>
-            <h3>Next event: {{ next_event }}</h3>
-            <span id="countdown">Loading...</span>
-            <div class="btn-container">
-                <button class="btn-grad btn-day" type="button" alt="Day Mode" onclick="toggleMode('day')">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                        stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="12.41 6.75 13 2 10.57 4.92" />
-                        <polyline points="18.57 12.91 21 10 15.66 10" />
-                        <polyline points="8 8 3 14 12 14 11 22 16 16" />
-                        <line x1="1" y1="1" x2="23" y2="23" />
-                    </svg>
-                </button>
-                <button class="btn-grad btn-night" type="button" alt="Night Mode" onclick="toggleMode('night')">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                        stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                    </svg>
-                </button>
+            <div class="toggle-container">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="manual-toggle" title="Mode">
+                    <span class="slider"></span>
+                </label>
             </div>
+
+
+            <div class="clock-time" id="clock">Loading...</div>
+            <div class="main-content" id="main-content">
+                <h2>Mode: Dynamic</h2>
+                </2h>
+                <h3>Current Schedule:</h3>
+                <p>Sunrise: {{ sunrise }}</p>
+                <p>Sunset: {{ sunset }}</p>
+                <h3>Next event: {{ next_event }}</h3>
+                <span id="countdown">Loading...</span>
+                <div class="btn-container">
+                    <button class="btn-grad btn-bright" type="button" title="Day" alt="Day"
+                        onclick="toggleDynamicMode('day')">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <!-- Vertical lines -->
+                            <line x1="12" y1="3" x2="12" y2="4" />
+                            <line x1="12" y1="20" x2="12" y2="21" />
+                            <!-- Horizontal line -->
+                            <line x1="4" y1="12" x2="3" y2="12" />
+                            <line x1="21" y1="12" x2="20" y2="12" />
+                            <!-- Diagonal lines -->
+                            <line x1="6.314" y1="6.314" x2="5.5" y2="5.5" />
+                            <line x1="17.686" y1="6.314" x2="18.5" y2="5.5" />
+                            <line x1="6.314" y1="17.69" x2="5.5" y2="18.5" />
+                            <line x1="17.686" y1="17.69" x2="18.5" y2="18.5" />
+                            <!-- Center circle -->
+                            <circle cx="12" cy="12" r="4" />
+                        </svg>
+
+                    </button>
+                    <button class="btn-grad btn-dark" type="button" title="Night" alt="Night"
+                        onclick="toggleDynamicMode('night')">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path
+                                d="M3,11.985A9.811,9.811,0,0,0,12.569,22a9.528,9.528,0,0,0,8.309-5.059,1,1,0,0,0-.947-1.477l-.11.008c-.131.01-.263.02-.4.02a7.811,7.811,0,0,1-7.569-8.015,8.378,8.378,0,0,1,1.016-4A1,1,0,0,0,11.923,2,9.855,9.855,0,0,0,3,11.985Z" />
+                        </svg>
+
+                    </button>
+                </div>
+            </div>
+
+            <div class="manual-section hidden" id="manual-section">
+                <h2>Mode: Manual</h2>
+                <div class="manual-controls">
+                    <div>
+                        <h3>SignalRGB:</h3>
+                        <select name="effect" id="effect-select">
+                            <option value="">-- Select Effect --</option>
+                            {% for effect in effect_names|sort %}
+                            <option value="{{ effect }}">{{ effect }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <h3>Philips Hue:</h3>
+                        <select name="scene" id="scene-select">
+                            <option value="">-- Select Scene --</option>
+                            {% for scene in scene_names|sort %}
+                            <option value="{{ scene }}">{{ scene }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div style="text-align: center; margin-bottom: 15px;">
+                        <button class="btn-rand" type="button" title="Randomize" alt="Randomize"
+                            onclick="randomizeSelections()">
+                            <svg height="24px" width="24px" version="1.1" id="Layer_1"
+                                xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+                                viewBox="0 0 512 512" xml:space="preserve">
+                                <g>
+                                    <g>
+                                        <g>
+                                            <path d="M45.781,292.608c-2.069-11.989-3.115-24.299-3.115-36.608v-0.512c0-11.776-9.536-21.077-21.333-21.077
+				C9.557,234.411,0,244.224,0,256c0,14.72,1.259,29.483,3.733,43.84c1.792,10.389,10.795,17.728,21.013,17.728
+				c1.173,0,2.411-0.107,3.648-0.32C39.979,315.243,47.787,304.213,45.781,292.608z" />
+                                            <path d="M28.224,195.328c2.432,0.875,4.907,1.301,7.339,1.301c8.704,0,16.853-5.355,20.032-13.995
+				c4.267-11.584,9.579-22.891,15.787-33.621c5.931-10.176,2.453-23.253-7.723-29.163c-10.197-5.909-23.211-2.475-29.141,7.723
+				c-7.488,12.864-13.867,26.453-18.965,40.363C11.499,179.008,17.152,191.253,28.224,195.328z" />
+                                            <path d="M70.955,362.197C65.045,352,52.011,348.48,41.792,354.347c-10.197,5.888-13.717,18.923-7.851,29.141
+				c7.403,12.843,15.979,25.131,25.493,36.544c4.224,5.077,10.283,7.68,16.405,7.68c4.821,0,9.643-1.621,13.653-4.949
+				c9.045-7.531,10.261-20.992,2.731-30.037C84.267,383.189,77.12,372.928,70.955,362.197z" />
+                                            <path d="M440.853,149.397c3.925,6.848,11.093,10.645,18.475,10.645c3.627,0,7.296-0.917,10.667-2.859
+				c10.176-5.888,13.675-18.944,7.765-29.141c-7.424-12.843-16.021-25.131-25.557-36.523c-7.573-9.003-21.013-10.219-30.059-2.645
+				c-9.024,7.573-10.219,21.035-2.645,30.059C427.477,128.427,434.624,138.688,440.853,149.397z" />
+                                            <path d="M215.509,46.144c1.216,0,2.432-0.107,3.691-0.32c12.032-2.091,24.405-3.157,36.8-3.157h0.256
+				c11.797,0,21.205-9.557,21.205-21.333S267.797,0,256,0c-14.827,0-29.675,1.28-44.139,3.797
+				c-11.605,2.027-19.371,13.056-17.344,24.683C196.331,38.848,205.312,46.144,215.509,46.144z" />
+                                            <path d="M329.152,55.531c11.605,4.224,22.912,9.515,33.621,15.744c3.392,1.941,7.061,2.859,10.688,2.859
+				c7.36,0,14.528-3.797,18.496-10.624c5.909-10.197,2.432-23.232-7.765-29.163c-12.885-7.467-26.496-13.824-40.448-18.901
+				c-11.051-4.011-23.317,1.685-27.349,12.757C312.363,39.253,318.08,51.499,329.152,55.531z" />
+                                            <path d="M182.443,456.299c-11.584-4.267-22.891-9.579-33.621-15.808c-10.176-5.931-23.253-2.475-29.163,7.701
+				c-5.931,10.197-2.475,23.253,7.701,29.163c12.885,7.488,26.453,13.888,40.384,19.008c2.432,0.875,4.907,1.301,7.339,1.301
+				c8.704,0,16.875-5.355,20.032-13.995C199.168,472.619,193.515,460.352,182.443,456.299z" />
+                                            <path d="M483.669,317.163c-11.008-4.032-23.317,1.557-27.392,12.608c-4.309,11.605-9.643,22.912-15.872,33.621
+				c-5.931,10.176-2.517,23.232,7.659,29.163c3.392,1.984,7.083,2.923,10.731,2.923c7.339,0,14.485-3.797,18.453-10.603
+				c7.488-12.821,13.888-26.368,19.029-40.299C500.395,333.525,494.741,321.259,483.669,317.163z" />
+                                            <path d="M508.181,211.605c-2.027-11.605-13.12-19.435-24.683-17.344c-11.605,2.027-19.392,13.077-17.365,24.704
+				c2.133,12.139,3.2,24.597,3.243,35.733c-0.021,0.427-0.064,1.877-0.064,2.304c0,11.797,9.579,20.821,21.333,20.821
+				C502.443,277.824,512,267.776,512,256C512,241.109,510.72,226.176,508.181,211.605z" />
+                                            <path d="M128.009,85.347v42.651c0,11.782,9.551,21.333,21.333,21.333c11.782,0,21.333-9.551,21.333-21.333V42.665
+				c0-11.782-9.551-21.333-21.333-21.333H64.009c-11.782,0-21.333,9.551-21.333,21.333c0,11.782,9.551,21.333,21.333,21.333h23.809
+				c-5.237,7.692-4.991,18.193,1.249,25.688c4.224,5.035,10.304,7.637,16.405,7.637c4.8,0,9.664-1.621,13.653-4.949
+				C122.02,89.951,124.989,87.614,128.009,85.347z" />
+                                            <path d="M292.395,466.24c-11.968,2.048-24.192,3.093-36.395,3.093h-0.747c-11.776,0-20.949,9.557-20.949,21.333
+				S244.224,512,256,512c14.592,0,29.269-1.259,43.584-3.691c11.605-2.005,19.435-13.035,17.429-24.64
+				C315.029,472.064,304.021,464.299,292.395,466.24z" />
+                                            <path d="M448.009,447.998h-23.96c5.01-7.64,4.702-17.96-1.478-25.342c-7.509-9.024-20.992-10.283-30.037-2.709
+				c-2.774,2.319-5.624,4.562-8.525,6.742v-42.691c0-11.782-9.551-21.333-21.333-21.333s-21.333,9.551-21.333,21.333v85.333
+				c0,11.782,9.551,21.333,21.333,21.333h85.333c11.782,0,21.333-9.551,21.333-21.333
+				C469.342,457.549,459.791,447.998,448.009,447.998z" />
+                                            <path d="M256.009,149.331c-58.907,0-106.667,47.759-106.667,106.667s47.759,106.667,106.667,106.667
+				s106.667-47.759,106.667-106.667S314.916,149.331,256.009,149.331z M256.009,319.998c-35.343,0-64-28.657-64-64s28.657-64,64-64
+				s64,28.657,64,64S291.352,319.998,256.009,319.998z" />
+                                        </g>
+                                    </g>
+                                </g>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="btn-container">
+                        <button class="btn-grad btn-bright" type="button" title="On" alt="On"
+                            onclick="toggleManualMode()">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                            </svg>
+                        </button>
+                        <button class="btn-grad btn-dark" type="button" title="Off" alt="Off"
+                            onclick="toggleManualMode('Good Night!', 'Off')">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <polyline points="12.41 6.75 13 2 10.57 4.92" />
+                                <polyline points="18.57 12.91 21 10 15.66 10" />
+                                <polyline points="8 8 3 14 12 14 11 22 16 16" />
+                                <line x1="1" y1="1" x2="23" y2="23" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div class="alert-container">
                 <div id="alert" class="alert"></div>
             </div>
@@ -225,7 +184,27 @@
             return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
         }
 
-        function toggleMode(mode) {
+        function randomizeSelections() {
+            const effectSelect = document.getElementById('effect-select');
+            const sceneSelect = document.getElementById('scene-select');
+
+            // Get all non-empty options (excluding the "-- Select --" option)
+            const effectOptions = Array.from(effectSelect.options).filter(option => option.value !== '');
+            const sceneOptions = Array.from(sceneSelect.options).filter(option => option.value !== '');
+
+            // Select random options if available
+            if (effectOptions.length > 0) {
+                const randomEffectIndex = Math.floor(Math.random() * effectOptions.length);
+                effectSelect.value = effectOptions[randomEffectIndex].value;
+            }
+
+            if (sceneOptions.length > 0) {
+                const randomSceneIndex = Math.floor(Math.random() * sceneOptions.length);
+                sceneSelect.value = sceneOptions[randomSceneIndex].value;
+            }
+        }
+
+        function toggleDynamicMode(mode) {
             fetch(`/toggle?mode=${mode}`)
                 .then(response => {
                     if (!response.ok) {
@@ -235,7 +214,7 @@
                 })
                 .then(data => {
                     console.log('Success');
-                    showAlert(`Mode set to: ${capitalize(mode)}`, 'success');
+                    showAlert(`${capitalize(mode)} mode set`, 'success');
                 })
                 .catch(error => {
                     console.error('Error:', error);
@@ -243,12 +222,116 @@
                 });
         }
 
+        function toggleManualMode(effect, scene) {
+            const effectSelect = document.getElementById('effect-select');
+            const sceneSelect = document.getElementById('scene-select');
+
+            const selectedEffect = effect ?? effectSelect.value;
+            const selectedScene = scene ?? sceneSelect.value;
+
+            // Validation - require at least one selection
+            if (!selectedEffect && !selectedScene) {
+                showAlert('Please select at least one effect or scene', 'error');
+                return;
+            }
+
+            // Build URL with selected parameters
+            let url = '/toggle?mode=manual';
+            if (selectedEffect) {
+                url += `&effect=${encodeURIComponent(selectedEffect)}`;
+            }
+            if (selectedScene) {
+                url += `&scene=${encodeURIComponent(selectedScene)}`;
+            }
+
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.text();
+                })
+                .then(data => {
+                    console.log('Success');
+                    let message = '';
+                    if (selectedEffect === "Good Night!" && selectedScene === "Off") {
+                        message = 'Lights turned off';
+                    } else {
+                        if (selectedEffect && selectedScene) {
+                            message += `Effect: ${selectedEffect}\nScene: ${selectedScene}`;
+                        } else if (selectedEffect) {
+                            message += `Effect: ${selectedEffect}`;
+                        } else {
+                            message += `Scene: ${selectedScene}`;
+                        }
+                    }
+                    showAlert(message, 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showAlert('Failed to apply manual settings', 'error');
+                });
+        }
+
+        function toggleManualSection() {
+            const toggle = document.getElementById('manual-toggle');
+            const manualSection = document.getElementById('manual-section');
+            const mainContent = document.getElementById('main-content');
+
+            if (toggle.checked) {
+                // Show manual section, hide main content
+                manualSection.classList.remove('hidden');
+                mainContent.classList.add('hidden');
+            } else {
+                // Show main content, hide manual section
+                manualSection.classList.add('hidden');
+                mainContent.classList.remove('hidden');
+            }
+        }
+
+        function initializeToggleView() {
+            const toggle = document.getElementById('manual-toggle');
+            const manualSection = document.getElementById('manual-section');
+            const mainContent = document.getElementById('main-content');
+
+            if (toggle.checked) {
+                // Show manual section, hide main content
+                manualSection.classList.remove('hidden');
+                mainContent.classList.add('hidden');
+            } else {
+                // Show main content, hide manual section
+                manualSection.classList.add('hidden');
+                mainContent.classList.remove('hidden');
+            }
+        }
+
+        function setContainerMinimumSize() {
+            const container = document.querySelector('.rgb-container');
+            if (container) {
+                // Get the natural dimensions when in default state
+                const computedStyle = window.getComputedStyle(container);
+                const currentWidth = container.offsetWidth;
+                const currentHeight = container.offsetHeight;
+
+                // Set these as minimum dimensions
+                container.style.minWidth = currentWidth + 'px';
+                container.style.minHeight = currentHeight + 'px';
+
+                if (isDebugMode) {
+                    console.log('Container minimum size set to:', currentWidth + 'x' + currentHeight);
+                }
+            }
+        }
+
         let timeoutId;
 
         function showAlert(message, type) {
             const alertContainer = document.getElementsByClassName('alert-container')[0];
             const alert = document.getElementById('alert');
-            alert.textContent = message;
+
+            const formattedMessage = message.replace(/\n/g, '<br>');
+            alert.innerHTML = formattedMessage;
+
             alert.className = `alert alert-${type}`;
             alertContainer.style.display = 'block';
 
@@ -337,6 +420,15 @@
             setMode(currentMode);
             cleanBody();
             checkUrlParams();
+
+            // Set minimum container size based on initial dimensions
+            setContainerMinimumSize();
+
+            // Initialize the view based on current toggle state
+            initializeToggleView();
+
+            const manualToggle = document.getElementById('manual-toggle');
+            manualToggle.addEventListener('change', toggleManualSection);
         });
 
         setInterval(updateClock, 1000);

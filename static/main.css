@@ -1,0 +1,339 @@
+:root {
+    --bg-day: linear-gradient(300deg, #a1c4fd 0%, #c2e9fb 100%);
+    --bg-night: linear-gradient(120deg, #330867 0%, #76a7c1 100%);
+    /* --bg-dark: linear-gradient(to top, #000 0%, #202020 100%); */
+    --text-day: #333;
+    --text-night: #fff;
+    --selection-day: #fff9c4;
+    --selection-night: #ffd700;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    transition: background 0.5s ease;
+}
+
+.page-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.clock-time {
+    font-size: 4rem;
+    font-weight: bold;
+}
+
+.rgb-container,
+.alert-container {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    transition: all 0.5s ease;
+}
+
+.rgb-container {
+    position: relative;
+    display: inline-block;
+    box-sizing: border-box;
+}
+
+.alert-container {
+    position: absolute;
+    display: none;
+    top: calc(100% + 1rem);
+    left: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.alert {
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+}
+
+.alert-success {
+    background-color: #4CAF50;
+}
+
+.alert-error {
+    background-color: #f44336;
+}
+
+h1,
+h2,
+h3,
+h4 {
+    margin-bottom: 1rem;
+}
+
+p {
+    margin-bottom: 0.5rem;
+}
+
+#countdown {
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.btn-container {
+    display: flex;
+    justify-content: space-around;
+    gap: 1rem;
+    margin-top: 20px;
+}
+
+.btn-container button svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+}
+
+.btn-grad {
+    background-size: 200% auto;
+    transition: 0.5s;
+    padding: 15px 45px;
+    text-align: center;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    min-height: 48px;
+    /* Explicit minimum height */
+}
+
+.btn-grad img {
+    width: 24px;
+    height: 24px;
+    z-index: 2;
+}
+
+.btn-grad:hover {
+    background-position: right center;
+}
+
+.btn-dark {
+    background-image: linear-gradient(to right, #2c3e50 0%, #4c669f 51%, #2c3e50 100%);
+}
+
+.btn-bright {
+    background-image: linear-gradient(to right, #FFD700 0%, #FFA500 51%, #FFD700 100%);
+}
+
+.btn-rand {
+    padding: 0px;
+    margin: 0 auto;
+    margin-top: 10.3px;
+    border: none;
+    border-radius: 50%;
+    fill: currentColor;
+    background-color: transparent;
+    display: flex;
+    transition: opacity 0.2s ease;
+    opacity: 1;
+    cursor: pointer;
+}
+
+.btn-rand:hover {
+    opacity: 0.6;
+}
+
+.btn-rand:active {
+    transform: scale(0.9);
+    transition: transform 0.1s, background-color 0.1s;
+}
+
+.btn-grad::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.1);
+    opacity: 0;
+    border-radius: 100%;
+    transform: scale(1, 1) translate(-50%);
+    transform-origin: 50% 50%;
+}
+
+@keyframes ripple {
+    0% {
+        transform: scale(0, 0);
+        opacity: 0.5;
+    }
+
+    20% {
+        transform: scale(25, 25);
+        opacity: 0.5;
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(40, 40);
+    }
+}
+
+.btn-grad:focus:not(:active)::after {
+    animation: ripple 1s ease-out;
+}
+
+::selection {
+    background: var(--selection-day);
+}
+
+body[data-theme='night'] ::selection {
+    background: var(--selection-night);
+}
+
+.logout-icon {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 10;
+    color: currentColor;
+    text-decoration: none;
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+}
+
+.logout-icon:hover {
+    opacity: 1;
+}
+
+.toggle-container {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 5;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(204, 204, 204, 0.6);
+    transition: .4s;
+    border-radius: 22px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked+.slider {
+    background-color: rgba(255, 255, 255, 0.7);
+}
+
+input:checked+.slider:before {
+    background-color: #ccc;
+    transform: translateX(18px);
+}
+
+.main-content,
+.manual-section {
+    transition: opacity 0.3s ease;
+    overflow: hidden;
+}
+
+.main-content.hidden,
+.manual-section.hidden {
+    display: none;
+    /* Complete hide instead of opacity/height changes */
+}
+
+.manual-controls select:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.manual-controls select:focus {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.25);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+}
+
+.manual-controls select option {
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 8px;
+}
+
+/* Day theme select styling */
+body[data-theme='day'] .manual-controls select {
+    background: rgba(0, 0, 0, 0.05);
+    border-color: rgba(0, 0, 0, 0.1);
+    color: var(--text-day);
+}
+
+body[data-theme='day'] .manual-controls select:hover {
+    background: rgba(0, 0, 0, 0.1);
+    border-color: rgba(0, 0, 0, 0.2);
+}
+
+body[data-theme='day'] .manual-controls select:focus {
+    background: rgba(0, 0, 0, 0.15);
+    border-color: rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+}
+
+body[data-theme='day'] .manual-controls select option {
+    background: rgba(255, 255, 255, 0.95);
+    color: var(--text-day);
+}
+
+.manual-controls select {
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: inherit;
+    min-width: 140px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
